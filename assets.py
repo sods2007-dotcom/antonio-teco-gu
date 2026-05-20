@@ -23,11 +23,11 @@ def load_assets():
     assets['font_media'] = pygame.font.SysFont(None, 50)
     assets['font_pequena'] = pygame.font.SysFont(None, 28)
 
-    # ----- Sons (serao adicionados no Commit #12) -----
+    # ----- Sons -----
     sons_para_carregar = {
         'chute': 'chute.wav',
-        'gol': 'gol.wav',
-        'perdeu': 'perdeu.wav',
+        'gol': 'gol.mp3',
+        'perdeu': 'perdeu.mp3',
         'trave': 'trave.wav',
     }
 

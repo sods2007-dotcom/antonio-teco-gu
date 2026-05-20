@@ -40,6 +40,8 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
                 if mira.estado == 'subindo':
                     alvo_pos = mira.disparar()
                     bola.chutar(alvo_pos[0], alvo_pos[1])
+                    if assets.get('chute'):
+                        assets['chute'].play()
                     all_sprites.remove(mira)
                     # CPU decide se vai defender
                     if cpu_vai_defender(alvo_pos):
@@ -59,6 +61,7 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
             else:
                 resultado_atual = verifica_gol(bola)
             partida.registra_resultado_jogador(resultado_atual)
+            tocar_som_resultado(assets, resultado_atual)
             frames_mostra_resultado = FPS * 2  # mostra por 2 segundos
         # Avanca para proxima cobranca apos 2 segundos
         if frames_mostra_resultado > 0:
@@ -184,3 +187,11 @@ def desenha_placar(window, assets, partida):
             cor = (60, 60, 60)
         pygame.draw.circle(window, cor, (x, y), raio)
         pygame.draw.circle(window, WHITE, (x, y), raio, 2)
+def tocar_som_resultado(assets, resultado):
+    """Toca o som apropriado para cada resultado."""
+    if resultado == 'GOL' and assets.get('gol'):
+        assets['gol'].play()
+    elif resultado == 'TRAVE' and assets.get('trave'):
+        assets['trave'].play()
+    elif resultado in ('DEFENDIDA', 'FORA') and assets.get('perdeu'):
+        assets['perdeu'].play()
