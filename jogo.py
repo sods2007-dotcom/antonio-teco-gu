@@ -26,6 +26,7 @@ def tela_placeholder(window, nome_tela):
     return MENU
 # ===== Inicializacao =====
 pygame.init()
+pygame.mixer.init() # inicializa o sistema de som
 window = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption('Penalty Shooter')
 # ===== Loop principal de telas =====
