@@ -161,3 +161,141 @@ class Bola(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = (self.POSICAO_INICIAL_X, self.POSICAO_INICIAL_Y)
         self.estado = 'parada'
+
+class Goleiro(pygame.sprite.Sprite):
+    """
+    Goleiro: fica parado no meio do gol e mergulha para defender.
+    Recebe a posicao alvo e faz uma animacao suave (10 frames) ate a posicao.
+    """
+    LARGURA = 80
+    ALTURA = 100
+    def __init__(self):
+        pygame.sprite.Sprite.__init__(self)
+        # Cria imagem: corpo amarelo (camisa de goleiro) com cabeca
+        self.image = pygame.Surface(
+            (self.LARGURA, self.ALTURA), pygame.SRCALPHA
+        )
+        # Corpo (camisa amarela)
+        pygame.draw.rect(self.image, YELLOW,
+                        (10, 30, self.LARGURA - 20, self.ALTURA - 30))
+        # Cabeca
+        pygame.draw.circle(self.image, (255, 220, 180),
+                          (self.LARGURA // 2, 20), 18)
+        # Bracos abertos
+        pygame.draw.rect(self.image, YELLOW,
+                        (0, 35, self.LARGURA, 12))
+        self.image_original = self.image.copy()
+        self.rect = self.image.get_rect()
+        # Posicao inicial: centro do gol
+        self.rect.centerx = WIDTH // 2
+        self.rect.bottom = 260
+        self.posicao_inicial = self.rect.center
+        self.estado = 'parado'
+        self.alvo_x = 0
+        self.alvo_y = 0
+        self.frames_mergulho = 0
+        self.mask = pygame.mask.from_surface(self.image)
+    def mergulhar_para(self, x, y):
+        """Inicia o mergulho do goleiro em direcao a (x, y)."""
+        self.alvo_x = x
+        self.alvo_y = y
+        self.estado = 'mergulhando'
+        self.frames_mergulho = 0
+    def update(self):
+        """Atualiza a animacao do mergulho."""
+        if self.estado == 'mergulhando':
+            FRAMES_TOTAL = 10
+            dx = self.alvo_x - self.posicao_inicial[0]
+            dy = self.alvo_y - self.posicao_inicial[1]
+            progresso = self.frames_mergulho / FRAMES_TOTAL
+            progresso = min(1.0, progresso)
+            self.rect.centerx = self.posicao_inicial[0] + int(dx * progresso)
+            self.rect.centery = self.posicao_inicial[1] + int(dy * progresso)
+            # Rotaciona conforme mergulha
+            angulo = 0
+            if dx < 0:
+                angulo = progresso * 45
+            elif dx > 0:
+                angulo = -progresso * 45
+            center = self.rect.center
+            self.image = pygame.transform.rotate(self.image_original, angulo)
+            self.rect = self.image.get_rect()
+            self.rect.center = center
+            # Recalcula mask apos rotacao
+            self.mask = pygame.mask.from_surface(self.image)
+            self.frames_mergulho += 1
+            if self.frames_mergulho >= FRAMES_TOTAL:
+                self.estado = 'mergulhou'
+    def resetar(self):
+        """Volta o goleiro para a posicao inicial."""
+        self.image = self.image_original.copy()
+        self.rect = self.image.get_rect()
+        self.rect.center = self.posicao_inicial
+        self.estado = 'parado'
+        self.frames_mergulho = 0
+        self.mask = pygame.mask.from_surface(self.image)
+class Partida:
+    """
+    Gerencia o estado de uma partida de penaltis.
+    Mantem o controle de:
+    - Qual eh a cobranca atual (1 a 5 para cada time)
+    - Resultado de cada cobranca (GOL/DEFENDIDA/FORA/TRAVE)
+    - Qual time esta cobrando agora
+    - Quando a partida acabou
+    """
+    TOTAL_COBRANCAS = 5
+    def __init__(self, time_jogador, time_adversario):
+        self.time_jogador = time_jogador
+        self.time_adversario = time_adversario
+        # Listas com resultado de cada cobranca
+        self.resultados_jogador = []
+        self.resultados_adversario = []
+        # Estado: 'jogador_cobra', 'jogador_defende', 'fim'
+        self.fase = 'jogador_cobra'
+        self.cobranca_atual = 1
+    def registra_resultado_jogador(self, resultado):
+        """Registra o resultado de uma cobranca do jogador."""
+        self.resultados_jogador.append(resultado)
+        if not self.partida_decidida():
+            self.fase = 'jogador_defende'
+        else:
+            self.fase = 'fim'
+    def registra_resultado_adversario(self, resultado):
+        """Registra o resultado de uma cobranca do adversario."""
+        self.resultados_adversario.append(resultado)
+        if not self.partida_decidida():
+            self.fase = 'jogador_cobra'
+            self.cobranca_atual += 1
+        else:
+            self.fase = 'fim'
+    def gols_jogador(self):
+        """Quantos gols o jogador fez ate agora."""
+        return self.resultados_jogador.count('GOL')
+    def gols_adversario(self):
+        """Quantos gols o adversario fez ate agora."""
+        return self.resultados_adversario.count('GOL')
+    def partida_decidida(self):
+        """
+        Retorna True se a partida ja esta matematicamente decidida
+        (nao adianta cobrar mais).
+        """
+        cobr_j = len(self.resultados_jogador)
+        cobr_a = len(self.resultados_adversario)
+        gols_j = self.gols_jogador()
+        gols_a = self.gols_adversario()
+        restantes_j = self.TOTAL_COBRANCAS - cobr_j
+        restantes_a = self.TOTAL_COBRANCAS - cobr_a
+        # Se um time nao tem mais como alcancar o outro
+        if gols_j > gols_a + restantes_a:
+            return True
+        if gols_a > gols_j + restantes_j:
+            return True
+        # Se completaram todas as cobrancas
+        if cobr_j == self.TOTAL_COBRANCAS and cobr_a == self.TOTAL_COBRANCAS:
+            return True  # mesmo se empatou, considera fim (simplificacao)
+        return False
+    def jogador_venceu(self):
+        """Retorna True se o jogador venceu a partida."""
+        if not self.partida_decidida():
+            return False
+        return self.gols_jogador() > self.gols_adversario()
