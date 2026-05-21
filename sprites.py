@@ -299,3 +299,119 @@ class Partida:
         if not self.partida_decidida():
             return False
         return self.gols_jogador() > self.gols_adversario()
+class Batedor(pygame.sprite.Sprite):
+    """
+    Batedor adversario.
+    Aparece quando o jogador esta defendendo.
+    Faz uma pequena animacao de correr antes de "chutar".
+    """
+    def __init__(self):
+        pygame.sprite.Sprite.__init__(self)
+
+        # Cria imagem: corpo vermelho com cabeca e pernas
+        self.image_original = pygame.Surface((40, 70), pygame.SRCALPHA)
+
+        # Corpo
+        pygame.draw.rect(self.image_original, (200, 50, 50), (5, 20, 30, 40))
+        # Cabeca
+        pygame.draw.circle(self.image_original, (255, 220, 180), (20, 10), 10)
+        # Pernas
+        pygame.draw.rect(self.image_original, (50, 50, 100), (8, 55, 8, 15))
+        pygame.draw.rect(self.image_original, (50, 50, 100), (24, 55, 8, 15))
+
+        self.image = self.image_original.copy()
+        self.rect = self.image.get_rect()
+
+        # Comeca um pouco longe, vem correndo
+        self.rect.center = (WIDTH // 2 - 100, HEIGHT - 30)
+        self.posicao_chute = (WIDTH // 2, HEIGHT - 60)
+        self.frames_correndo = 30  # ~1 segundo
+        self.estado = 'correndo'
+
+    def update(self):
+        """Animacao de correr ate a bola."""
+        if self.estado == 'correndo':
+            # Move suavemente em direcao a bola
+            dx = self.posicao_chute[0] - self.rect.centerx
+            dy = self.posicao_chute[1] - self.rect.centery
+
+            if abs(dx) > 2:
+                self.rect.x += int(dx * 0.1)
+            if abs(dy) > 2:
+                self.rect.y += int(dy * 0.1)
+
+            # Gira ligeiramente (parece que esta correndo)
+            if self.frames_correndo % 6 < 3:
+                self.image = pygame.transform.rotate(self.image_original, 5)
+            else:
+                self.image = pygame.transform.rotate(self.image_original, -5)
+
+            self.frames_correndo -= 1
+            if self.frames_correndo <= 0:
+                self.estado = 'parado'
+                self.image = self.image_original.copy()
+
+    def acabou_correr(self):
+        """Retorna True se o batedor ja chegou e parou."""
+        return self.estado == 'parado'
+
+
+class AlvoDefesa(pygame.sprite.Sprite):
+    """
+    Alvo amarelo que aparece em algum ponto do gol durante a defesa.
+    O jogador deve clicar nele rapido para o goleiro mergulhar.
+    Tem tempo limitado de visibilidade (~1 segundo).
+    """
+    def __init__(self):
+        pygame.sprite.Sprite.__init__(self)
+
+        # Posicao aleatoria dentro do gol
+        gol_largura = 500
+        gol_altura = 180
+        gol_x = (WIDTH - gol_largura) // 2
+        gol_y = 80
+        margem = 30
+
+        self.alvo_x = random.randint(
+            gol_x + margem,
+            gol_x + gol_largura - margem
+        )
+        self.alvo_y = random.randint(
+            gol_y + margem,
+            gol_y + gol_altura - margem
+        )
+
+        # Cria imagem: circulo amarelo com X vermelho dentro
+        self.tamanho = 35
+        self.image = pygame.Surface(
+            (self.tamanho, self.tamanho),
+            pygame.SRCALPHA
+        )
+
+        pygame.draw.circle(
+            self.image, YELLOW,
+            (self.tamanho // 2, self.tamanho // 2),
+            self.tamanho // 2
+        )
+        pygame.draw.circle(
+            self.image, RED,
+            (self.tamanho // 2, self.tamanho // 2),
+            self.tamanho // 2, 3
+        )
+
+        # X no meio
+        pygame.draw.line(self.image, RED, (5, 5), (self.tamanho - 5, self.tamanho - 5), 3)
+        pygame.draw.line(self.image, RED, (self.tamanho - 5, 5), (5, self.tamanho - 5), 3)
+
+        self.rect = self.image.get_rect()
+        self.rect.center = (self.alvo_x, self.alvo_y)
+        self.frames_visivel = 30  # ~1 segundo a 30 FPS
+
+    def update(self):
+        """Conta os frames de visibilidade."""
+        if self.frames_visivel > 0:
+            self.frames_visivel -= 1
+
+    def expirou(self):
+        """True se o tempo do alvo acabou."""
+        return self.frames_visivel <= 0
