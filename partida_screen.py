@@ -1,7 +1,6 @@
 """
-Tela da partida — com goleiro CPU e placar.
+Tela da partida — alternancia entre cobrar e defender.
 """
-
 import pygame
 import random
 from config import (
@@ -9,23 +8,46 @@ from config import (
     MENU, FIM_PARTIDA, QUIT
 )
 from assets import load_assets
-from sprites import Mira, Bola, Goleiro, Partida
+from sprites import Mira, Bola, Goleiro, Partida, Batedor, AlvoDefesa
 def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
-    """Roda uma partida de penaltis (apenas fase do jogador cobrar, por ora)."""
+    """Roda uma partida completa entre jogador e adversario."""
     clock = pygame.time.Clock()
     assets = load_assets()
     partida = Partida(time_jogador, time_adversario)
-    mira = Mira()
-    bola = Bola()
-    goleiro = Goleiro()
-    all_sprites = pygame.sprite.Group()
-    all_sprites.add(goleiro, bola, mira)
+    sprites_cobranca = None
+    sprites_defesa = None
+    iniciar_fase_cobranca = True
+    iniciar_fase_defesa = False
+    chute_cpu_disparado = False
     resultado_atual = ""
     frames_mostra_resultado = 0
     running = True
     next_state = MENU
     while running:
         clock.tick(FPS)
+        # ===== Inicializa fase de cobranca quando precisar =====
+        if iniciar_fase_cobranca:
+            mira = Mira()
+            bola = Bola()
+            goleiro = Goleiro()
+            all_sprites = pygame.sprite.Group()
+            all_sprites.add(goleiro, bola, mira)
+            sprites_cobranca = (mira, bola, goleiro)
+            resultado_atual = ""
+            iniciar_fase_cobranca = False
+        # ===== Inicializa fase de defesa quando precisar =====
+        if iniciar_fase_defesa:
+            batedor = Batedor()
+            bola_cpu = Bola()
+            goleiro_jogador = Goleiro()
+            alvo = AlvoDefesa()
+            all_sprites = pygame.sprite.Group()
+            all_sprites.add(batedor, bola_cpu, goleiro_jogador)
+            sprites_defesa = (batedor, bola_cpu, goleiro_jogador, alvo)
+            chute_cpu_disparado = False
+            resultado_atual = ""
+            iniciar_fase_defesa = False
+        # ===== Eventos =====
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 next_state = QUIT
@@ -33,87 +55,133 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if mira.estado == 'oscilando_x':
-                    mira.travar_horizontal()
-            if event.type == pygame.MOUSEBUTTONUP:
-                if mira.estado == 'subindo':
-                    alvo_pos = mira.disparar()
-                    bola.chutar(alvo_pos[0], alvo_pos[1])
+            # ----- Cobranca: cliques na mira ----
+            if partida.fase == 'jogador_cobra' and sprites_cobranca:
+                mira, bola, goleiro = sprites_cobranca
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if mira.estado == 'oscilando_x':
+                        mira.travar_horizontal()
+                if event.type == pygame.MOUSEBUTTONUP:
+                    if mira.estado == 'subindo':
+                        alvo_pos = mira.disparar()
+                        bola.chutar(alvo_pos[0], alvo_pos[1])
+                        if assets.get('chute'):
+                            assets['chute'].play()
+                        all_sprites.remove(mira)
+                        if cpu_vai_defender(alvo_pos):
+                            goleiro.mergulhar_para(alvo_pos[0], alvo_pos[1])
+                        else:
+                            lado_x = random.choice(
+                                [WIDTH // 2 - 200, WIDTH // 2 + 200]
+                            )
+                            goleiro.mergulhar_para(lado_x, 200)
+            # ----- Defesa: jogador clica no alvo ----
+            if partida.fase == 'jogador_defende' and sprites_defesa:
+                batedor, bola_cpu, goleiro_jogador, alvo_def = sprites_defesa
+                if event.type == pygame.MOUSEBUTTONDOWN and not chute_cpu_disparado:
+                    if alvo_def.rect.collidepoint(event.pos):
+                        # Acertou o alvo — goleiro pula no lugar certo
+                        goleiro_jogador.mergulhar_para(
+                            alvo_def.alvo_x, alvo_def.alvo_y
+                        )
+                    else:
+                        # Errou — goleiro vai pra onde clicou
+                        goleiro_jogador.mergulhar_para(
+                            event.pos[0], event.pos[1]
+                        )
+                    bola_cpu.chutar(alvo_def.alvo_x, alvo_def.alvo_y)
                     if assets.get('chute'):
                         assets['chute'].play()
-                    all_sprites.remove(mira)
-                    # CPU decide se vai defender
-                    if cpu_vai_defender(alvo_pos):
-                        goleiro.mergulhar_para(alvo_pos[0], alvo_pos[1])
-                    else:
-                        # Mergulha pra um lado aleatorio (vai perder)
-                        lado_x = random.choice(
-                            [WIDTH // 2 - 200, WIDTH // 2 + 200]
-                        )
-                        goleiro.mergulhar_para(lado_x, 200)
+                    chute_cpu_disparado = True
+        # ===== Atualiza tudo =====
         all_sprites.update()
-        # Verifica resultado quando a bola chega no gol
-        if bola.estado == 'parou_no_gol' and resultado_atual == "":
-            # Usa colisao por mask para precisao
-            if pygame.sprite.collide_mask(bola, goleiro):
-                resultado_atual = "DEFENDIDA"
-            else:
-                resultado_atual = verifica_gol(bola)
-            partida.registra_resultado_jogador(resultado_atual)
-            tocar_som_resultado(assets, resultado_atual)
-            frames_mostra_resultado = FPS * 2  # mostra por 2 segundos
-        # Avanca para proxima cobranca apos 2 segundos
+        # Controla o alvo de defesa (some quando batedor termina e dispara se demora)
+        if (partida.fase == 'jogador_defende'
+                and sprites_defesa
+                and not chute_cpu_disparado):
+            batedor, bola_cpu, goleiro_j, alvo_def = sprites_defesa
+            if batedor.acabou_correr():
+                if alvo_def not in all_sprites:
+                    all_sprites.add(alvo_def)
+                alvo_def.update()
+                # Se o tempo expirou e o jogador nao clicou
+                if alvo_def.expirou():
+                    bola_cpu.chutar(alvo_def.alvo_x, alvo_def.alvo_y)
+                    if assets.get('chute'):
+                        assets['chute'].play()
+                    chute_cpu_disparado = True
+        # ===== Verifica resultado =====
+        if partida.fase == 'jogador_cobra' and resultado_atual == "":
+            mira, bola, goleiro = sprites_cobranca
+            if bola.estado == 'parou_no_gol':
+                if pygame.sprite.collide_mask(bola, goleiro):
+                    resultado_atual = "DEFENDIDA"
+                else:
+                    resultado_atual = verifica_gol(bola)
+                partida.registra_resultado_jogador(resultado_atual)
+                tocar_som_resultado(assets, resultado_atual)
+                frames_mostra_resultado = FPS * 2
+        elif partida.fase == 'jogador_defende' and resultado_atual == "":
+            _, bola_cpu, goleiro_j, _ = sprites_defesa
+            if bola_cpu.estado == 'parou_no_gol':
+                if pygame.sprite.collide_mask(bola_cpu, goleiro_j):
+                    resultado_atual = "DEFENDIDA"
+                else:
+                    resultado_atual = verifica_gol(bola_cpu)
+                partida.registra_resultado_adversario(resultado_atual)
+                tocar_som_resultado(assets, resultado_atual, eh_defesa=True)
+                frames_mostra_resultado = FPS * 2
+        # ===== Avanca para proxima fase =====
         if frames_mostra_resultado > 0:
             frames_mostra_resultado -= 1
             if frames_mostra_resultado == 0:
                 if partida.fase == 'fim':
                     running = False
                     next_state = FIM_PARTIDA
-                else:
-                    # Reseta para proxima cobranca
-                    mira = Mira()
-                    bola.resetar()
-                    goleiro.resetar()
-                    all_sprites.empty()
-                    all_sprites.add(goleiro, bola, mira)
-                    resultado_atual = ""
-        # Desenha tudo
+                elif partida.fase == 'jogador_defende':
+                    iniciar_fase_defesa = True
+                elif partida.fase == 'jogador_cobra':
+                    iniciar_fase_cobranca = True
+        # ===== Desenha tudo =====
         desenha_campo(window)
         desenha_gol(window)
         all_sprites.draw(window)
         desenha_placar(window, assets, partida)
-        # Mensagem da fase
-        if resultado_atual:
-            cor = GREEN if resultado_atual == 'GOL' else RED
-            texto = assets['font_media'].render(resultado_atual, True, cor)
-            window.blit(texto,
-                       (WIDTH // 2 - texto.get_width() // 2, HEIGHT - 60))
-        elif mira.estado == 'oscilando_x':
-            msg = "Clique para travar direcao"
-            texto = assets['font_pequena'].render(msg, True, WHITE)
-            window.blit(texto,
-                       (WIDTH // 2 - texto.get_width() // 2, HEIGHT - 40))
-        elif mira.estado == 'subindo':
-            msg = "Solte para chutar"
-            texto = assets['font_pequena'].render(msg, True, WHITE)
-            window.blit(texto,
-                       (WIDTH // 2 - texto.get_width() // 2, HEIGHT - 40))
+        desenha_mensagem(window, assets, partida, resultado_atual,
+                         sprites_cobranca, sprites_defesa,
+                         chute_cpu_disparado)
         pygame.display.update()
-    return next_state
+    return next_state, partida
 def cpu_vai_defender(alvo_pos):
-    """
-    Decide se o goleiro CPU vai defender o chute.
-    Chance base de 40%, reduzida quando o alvo eh mais perto dos cantos.
-    Tem um minimo de 15% para nao ser impossivel.
-    """
+    """Chance do goleiro CPU defender (40% base, menos nos cantos)."""
     x = alvo_pos[0]
     distancia_centro = abs(x - WIDTH // 2)
     chance_base = 0.4
     chance = chance_base - (distancia_centro / 500)
     return random.random() < max(0.15, chance)
+def tocar_som_resultado(assets, resultado, eh_defesa=False):
+    """Toca o som correto, considerando se a cobranca foi do jogador ou CPU."""
+    if resultado == 'GOL':
+        # Para CPU marcar gol contra voce, toca som de perdeu
+        if eh_defesa:
+            if assets.get('perdeu'):
+                assets['perdeu'].play()
+        else:
+            if assets.get('gol'):
+                assets['gol'].play()
+    elif resultado == 'DEFENDIDA':
+        # Voce defendeu = comemora; CPU defendeu = lamenta
+        if eh_defesa:
+            if assets.get('gol'):
+                assets['gol'].play()
+        else:
+            if assets.get('perdeu'):
+                assets['perdeu'].play()
+    elif resultado == 'TRAVE':
+        if assets.get('trave'):
+            assets['trave'].play()
 def verifica_gol(bola):
-    """Verifica se a bola entrou no gol, bateu na trave ou saiu fora."""
+    """Verifica se a bola entrou no gol, na trave ou fora."""
     gol_largura = 500
     gol_altura = 180
     gol_x = (WIDTH - gol_largura) // 2
@@ -135,12 +203,12 @@ def verifica_gol(bola):
         return 'GOL'
     return 'FORA'
 def desenha_campo(window):
-    """Desenha o fundo do campo."""
+    """Desenha o fundo."""
     window.fill(GREEN_GRAMA)
     pygame.draw.line(window, WHITE, (0, HEIGHT - 100),
                     (WIDTH, HEIGHT - 100), 2)
 def desenha_gol(window):
-    """Desenha o gol."""
+    """Desenha o gol completo."""
     gol_largura = 500
     gol_altura = 180
     gol_x = (WIDTH - gol_largura) // 2
@@ -160,17 +228,14 @@ def desenha_gol(window):
     pygame.draw.rect(window, WHITE,
                     (gol_x - 5, gol_y - 5, gol_largura + 10, 5))
 def desenha_placar(window, assets, partida):
-    """Desenha o placar com nome dos times e bolinhas de cada cobranca."""
-    # Nome dos times
+    """Placar com bolinhas de cada cobranca."""
     texto_j = assets['font_pequena'].render(partida.time_jogador, True, WHITE)
     texto_a = assets['font_pequena'].render(partida.time_adversario, True, WHITE)
     window.blit(texto_j, (20, 10))
     window.blit(texto_a, (WIDTH - texto_a.get_width() - 20, 10))
-    # Bolinhas: verde=gol, vermelho=errou/defendido, cinza=ainda nao cobrou
     raio = 8
     espacamento = 22
     for i in range(5):
-        # Bolinhas do jogador (esquerda)
         x = 20 + i * espacamento
         y = 45
         if i < len(partida.resultados_jogador):
@@ -179,7 +244,6 @@ def desenha_placar(window, assets, partida):
             cor = (60, 60, 60)
         pygame.draw.circle(window, cor, (x, y), raio)
         pygame.draw.circle(window, WHITE, (x, y), raio, 2)
-        # Bolinhas do adversario (direita)
         x = WIDTH - 20 - i * espacamento - raio
         if i < len(partida.resultados_adversario):
             cor = GREEN if partida.resultados_adversario[i] == 'GOL' else RED
@@ -187,11 +251,30 @@ def desenha_placar(window, assets, partida):
             cor = (60, 60, 60)
         pygame.draw.circle(window, cor, (x, y), raio)
         pygame.draw.circle(window, WHITE, (x, y), raio, 2)
-def tocar_som_resultado(assets, resultado):
-    """Toca o som apropriado para cada resultado."""
-    if resultado == 'GOL' and assets.get('gol'):
-        assets['gol'].play()
-    elif resultado == 'TRAVE' and assets.get('trave'):
-        assets['trave'].play()
-    elif resultado in ('DEFENDIDA', 'FORA') and assets.get('perdeu'):
-        assets['perdeu'].play()
+def desenha_mensagem(window, assets, partida, resultado_atual,
+                     sprites_cobranca, sprites_defesa, chute_cpu):
+    """Mensagem do rodape conforme a fase."""
+    if resultado_atual:
+        cor = GREEN if resultado_atual == 'GOL' else RED
+        texto = assets['font_media'].render(resultado_atual, True, cor)
+        window.blit(texto,
+                   (WIDTH // 2 - texto.get_width() // 2, HEIGHT - 60))
+        return
+    if partida.fase == 'jogador_cobra' and sprites_cobranca:
+        mira, _, _ = sprites_cobranca
+        if mira.estado == 'oscilando_x':
+            msg = "Clique para travar direcao"
+            cor = WHITE
+        elif mira.estado == 'subindo':
+            msg = "Solte para chutar"
+            cor = WHITE
+        else:
+            return
+        texto = assets['font_pequena'].render(msg, True, cor)
+        window.blit(texto,
+                   (WIDTH // 2 - texto.get_width() // 2, HEIGHT - 40))
+    elif partida.fase == 'jogador_defende' and not chute_cpu:
+        msg = "Clique no alvo para defender!"
+        texto = assets['font_pequena'].render(msg, True, YELLOW)
+        window.blit(texto,
+                   (WIDTH // 2 - texto.get_width() // 2, HEIGHT - 40))
