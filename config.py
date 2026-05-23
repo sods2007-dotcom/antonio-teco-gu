@@ -27,3 +27,15 @@ PARTIDA = 2
 FIM_PARTIDA = 3
 CAMPEAO = 4
 QUIT = 5
+# ===== Times disponiveis =====
+# Cada time: (nome, cor_primaria_RGB, cor_secundaria_RGB)
+TIMES = [
+    ("Brasil",     (255, 215, 0),    (0, 100, 0)),
+    ("Argentina",  (135, 206, 235),  (255, 255, 255)),
+    ("Alemanha",   (255, 255, 255),  (0, 0, 0)),
+    ("Italia",     (0, 70, 180),     (255, 255, 255)),
+    ("Espanha",    (200, 30, 30),    (255, 215, 0)),
+    ("Franca",     (0, 50, 150),     (255, 255, 255)),
+    ("Portugal",   (200, 30, 30),    (0, 100, 0)),
+    ("Inglaterra", (255, 255, 255),  (200, 30, 30)),
+]
