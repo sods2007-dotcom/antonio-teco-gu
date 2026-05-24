@@ -27,7 +27,7 @@ from assets import load_assets
 def campeao_screen(window, time_jogador):
     """
     Mostra a tela de campeao com animacao.
-    time_jogador eh a tupla (nome, cor1, cor2).
+    time_jogador é a tupla (nome, cor1, cor2).
     """
 
     pygame.mouse.set_visible(True)

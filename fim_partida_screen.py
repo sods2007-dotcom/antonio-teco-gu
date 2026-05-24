@@ -10,7 +10,7 @@ from assets import load_assets
 def fim_partida_screen(window, partida, fase_torneio):
     """
     Mostra o resultado de uma partida.
-    Se o jogador venceu e ainda nao eh a final, oferece continuar.
+    Se o jogador venceu e ainda nao é a final, oferece continuar.
     Se venceu a final, vai pra tela CAMPEAO.
     Se perdeu, oferece voltar ao menu.
     """

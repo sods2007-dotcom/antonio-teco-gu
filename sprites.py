@@ -163,6 +163,9 @@ class Bola(pygame.sprite.Sprite):
         self.estado = 'parada'
 
 class Goleiro(pygame.sprite.Sprite):
+    """
+    Representa o goleiro na tela.
+    """
     LARGURA = 80
     ALTURA = 100
     def __init__(self, cor_camisa=YELLOW):
@@ -293,6 +296,12 @@ class Partida:
             return False
         return self.gols_jogador() > self.gols_adversario()
 class Batedor(pygame.sprite.Sprite):
+    """
+    Personagem que corre para cobrar a penalidade. 
+    Tem animação de corrida enquanto se aproxima da bola, depois para.
+    A cor da camisa do batedor é a mesma do time adversário, para criar contraste com o goleiro.
+    
+    """
     def __init__(self, cor_camisa=(200, 50, 50)):
         """Batedor com a cor da camisa do time adversario."""
         pygame.sprite.Sprite.__init__(self)
