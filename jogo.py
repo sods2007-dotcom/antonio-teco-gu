@@ -11,6 +11,9 @@ from menu_screen import menu_screen
 from selecao_screen import selecao_screen
 from partida_screen import partida_screen
 from fim_partida_screen import fim_partida_screen
+from campeao_screen import campeao_screen
+
+
 def sorteia_adversario(time_jogador, ja_enfrentados):
     """Sorteia um adversario diferente do jogador e dos ja enfrentados."""
     candidatos = [
@@ -20,11 +23,14 @@ def sorteia_adversario(time_jogador, ja_enfrentados):
     if not candidatos:
         candidatos = [t for t in TIMES if t[0] != time_jogador[0]]
     return random.choice(candidatos)
+
+
 # ===== Inicializacao =====
 pygame.init()
 pygame.mixer.init()
 window = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption('Penalty Shooter')
+
 # ===== Contexto compartilhado do torneio =====
 contexto = {
     'time_jogador': None,
@@ -33,6 +39,8 @@ contexto = {
     'ja_enfrentados': [],
     'ultima_partida': None,
 }
+
+
 def resetar_torneio():
     """Reseta o contexto para um novo torneio."""
     contexto['time_jogador'] = None
@@ -40,12 +48,16 @@ def resetar_torneio():
     contexto['fase_torneio'] = 'quartas'
     contexto['ja_enfrentados'] = []
     contexto['ultima_partida'] = None
+
+
 # ===== Loop principal de telas =====
 state = MENU
+
 while state != QUIT:
     if state == MENU:
         state = menu_screen(window)
         resetar_torneio()
+
     elif state == SELECAO:
         state, time_escolhido = selecao_screen(window)
         if time_escolhido:
@@ -53,6 +65,7 @@ while state != QUIT:
             contexto['time_adversario'] = sorteia_adversario(
                 time_escolhido, contexto['ja_enfrentados']
             )
+
     elif state == PARTIDA:
         state, partida_concluida = partida_screen(
             window,
@@ -63,6 +76,7 @@ while state != QUIT:
         contexto['ultima_partida'] = partida_concluida
         if partida_concluida:
             contexto['ja_enfrentados'].append(contexto['time_adversario'][0])
+
     elif state == FIM_PARTIDA:
         state = fim_partida_screen(
             window,
@@ -82,26 +96,11 @@ while state != QUIT:
                     contexto['time_jogador'],
                     contexto['ja_enfrentados']
                 )
+
     elif state == CAMPEAO:
-        # Sera implementado no Commit #18
-        from config import WHITE
-        clock = pygame.time.Clock()
-        font = pygame.font.SysFont(None, 80)
-        text = font.render("CAMPEAO!", True, WHITE)
-        text_rect = text.get_rect(center=(WIDTH // 2, HEIGHT // 2))
-        esperando = True
-        while esperando:
-            clock.tick(30)
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    state = QUIT
-                    esperando = False
-                if event.type == pygame.KEYDOWN:
-                    esperando = False
-                    state = MENU
-            window.fill((0, 0, 0))
-            window.blit(text, text_rect)
-            pygame.display.update()
+        state = campeao_screen(window, contexto['time_jogador'])
+
     else:
         state = QUIT
+
 pygame.quit()
