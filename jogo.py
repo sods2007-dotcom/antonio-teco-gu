@@ -71,8 +71,11 @@ while state != QUIT:
             window,
             time_jogador=contexto['time_jogador'][0],
             time_adversario=contexto['time_adversario'][0],
-            fase_torneio=contexto['fase_torneio']
+            fase_torneio=contexto['fase_torneio'],
+            cor_jogador=contexto['time_jogador'][1],
+            cor_adversario=contexto['time_adversario'][1],
         )
+
         contexto['ultima_partida'] = partida_concluida
         if partida_concluida:
             contexto['ja_enfrentados'].append(contexto['time_adversario'][0])

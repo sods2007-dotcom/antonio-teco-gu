@@ -163,30 +163,23 @@ class Bola(pygame.sprite.Sprite):
         self.estado = 'parada'
 
 class Goleiro(pygame.sprite.Sprite):
-    """
-    Goleiro: fica parado no meio do gol e mergulha para defender.
-    Recebe a posicao alvo e faz uma animacao suave (10 frames) ate a posicao.
-    """
     LARGURA = 80
     ALTURA = 100
-    def __init__(self):
+    def __init__(self, cor_camisa=YELLOW):
+        """Goleiro com a cor da camisa especificada."""
         pygame.sprite.Sprite.__init__(self)
-        # Cria imagem: corpo amarelo (camisa de goleiro) com cabeca
         self.image = pygame.Surface(
             (self.LARGURA, self.ALTURA), pygame.SRCALPHA
         )
-        # Corpo (camisa amarela)
-        pygame.draw.rect(self.image, YELLOW,
+        # Corpo - usa a cor recebida (em vez de YELLOW fixo)
+        pygame.draw.rect(self.image, cor_camisa,
                         (10, 30, self.LARGURA - 20, self.ALTURA - 30))
-        # Cabeca
         pygame.draw.circle(self.image, (255, 220, 180),
                           (self.LARGURA // 2, 20), 18)
-        # Bracos abertos
-        pygame.draw.rect(self.image, YELLOW,
+        pygame.draw.rect(self.image, cor_camisa,
                         (0, 35, self.LARGURA, 12))
         self.image_original = self.image.copy()
         self.rect = self.image.get_rect()
-        # Posicao inicial: centro do gol
         self.rect.centerx = WIDTH // 2
         self.rect.bottom = 260
         self.posicao_inicial = self.rect.center
@@ -300,32 +293,21 @@ class Partida:
             return False
         return self.gols_jogador() > self.gols_adversario()
 class Batedor(pygame.sprite.Sprite):
-    """
-    Batedor adversario.
-    Aparece quando o jogador esta defendendo.
-    Faz uma pequena animacao de correr antes de "chutar".
-    """
-    def __init__(self):
+    def __init__(self, cor_camisa=(200, 50, 50)):
+        """Batedor com a cor da camisa do time adversario."""
         pygame.sprite.Sprite.__init__(self)
-
-        # Cria imagem: corpo vermelho com cabeca e pernas
         self.image_original = pygame.Surface((40, 70), pygame.SRCALPHA)
-
-        # Corpo
-        pygame.draw.rect(self.image_original, (200, 50, 50), (5, 20, 30, 40))
-        # Cabeca
-        pygame.draw.circle(self.image_original, (255, 220, 180), (20, 10), 10)
-        # Pernas
+        # Usa a cor recebida (em vez de (200, 50, 50) fixo)
+        pygame.draw.rect(self.image_original, cor_camisa, (5, 20, 30, 40))
+        pygame.draw.circle(self.image_original,
+                          (255, 220, 180), (20, 10), 10)
         pygame.draw.rect(self.image_original, (50, 50, 100), (8, 55, 8, 15))
         pygame.draw.rect(self.image_original, (50, 50, 100), (24, 55, 8, 15))
-
         self.image = self.image_original.copy()
         self.rect = self.image.get_rect()
-
-        # Comeca um pouco longe, vem correndo
         self.rect.center = (WIDTH // 2 - 100, HEIGHT - 30)
         self.posicao_chute = (WIDTH // 2, HEIGHT - 60)
-        self.frames_correndo = 30  # ~1 segundo
+        self.frames_correndo = 30
         self.estado = 'correndo'
 
     def update(self):

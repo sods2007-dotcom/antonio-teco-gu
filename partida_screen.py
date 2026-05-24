@@ -11,8 +11,11 @@ from assets import load_assets
 from sprites import Mira, Bola, Goleiro, Partida, Batedor, AlvoDefesa
 
 
-def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina",
-                   fase_torneio="quartas"):
+def partida_screen(window, time_jogador="Brasil",
+                   time_adversario="Argentina",
+                   fase_torneio="quartas",
+                   cor_jogador=None,
+                   cor_adversario=None):
     """
     Roda uma partida completa entre jogador e adversario.
 
@@ -45,7 +48,7 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina",
         if iniciar_fase_cobranca:
             mira = Mira()
             bola = Bola()
-            goleiro = Goleiro()
+            goleiro = Goleiro(cor_camisa=cor_adversario or YELLOW)
             all_sprites = pygame.sprite.Group()
             all_sprites.add(goleiro, bola, mira)
             sprites_cobranca = (mira, bola, goleiro)
@@ -54,7 +57,7 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina",
 
         # ===== Inicializa fase de defesa quando precisar =====
         if iniciar_fase_defesa:
-            batedor = Batedor()
+            batedor = Batedor(cor_camisa=cor_adversario or (200, 50, 50))
             bola_cpu = Bola()
             goleiro_jogador = Goleiro()
             alvo = AlvoDefesa()
@@ -173,6 +176,12 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina",
         desenha_campo(window)
         desenha_gol(window)
         all_sprites.draw(window)
+        desenha_titulo_fase(window, assets, fase_torneio)
+
+        if partida.fase == 'jogador_cobra' and sprites_cobranca:
+            mira, bola, _ = sprites_cobranca
+            desenha_linha_mira(window, mira, bola)
+
         desenha_placar(window, assets, partida)
         desenha_mensagem(window, assets, partida, resultado_atual,
                          sprites_cobranca, sprites_defesa,
@@ -336,3 +345,38 @@ def desenha_mensagem(window, assets, partida, resultado_atual,
         texto = assets['font_pequena'].render(msg, True, YELLOW)
         window.blit(texto,
                    (WIDTH // 2 - texto.get_width() // 2, HEIGHT - 40))
+def desenha_titulo_fase(window, assets, fase_torneio):
+    """Mostra QUARTAS / SEMIFINAL / FINAL no topo da tela."""
+    titulos = {
+        'quartas': 'QUARTAS DE FINAL',
+        'semi': 'SEMIFINAL',
+        'final': 'FINAL',
+    }
+    titulo_texto = titulos.get(fase_torneio, '')
+    if not titulo_texto:
+        return
+    cor = YELLOW if fase_torneio == 'final' else WHITE
+    texto = assets['font_pequena'].render(titulo_texto, True, cor)
+    texto_rect = texto.get_rect(center=(WIDTH // 2, 30))
+    # Caixa preta semi-transparente atras
+    caixa = pygame.Surface(
+        (texto.get_width() + 30, texto.get_height() + 6),
+        pygame.SRCALPHA
+    )
+    caixa.fill((0, 0, 0, 180))
+    caixa_rect = caixa.get_rect(center=texto_rect.center)
+    window.blit(caixa, caixa_rect)
+    window.blit(texto, texto_rect)
+def desenha_linha_mira(window, mira, bola):
+    """Linha pontilhada da bola ate a mira (so durante cobranca)."""
+    if mira.estado not in ('oscilando_x', 'subindo'):
+        return
+    bx, by = bola.rect.center
+    mx, my = mira.rect.center
+    num_pontos = 15
+    for i in range(num_pontos):
+        if i % 2 == 0:
+            t = i / num_pontos
+            x = int(bx + (mx - bx) * t)
+            y = int(by + (my - by) * t)
+            pygame.draw.circle(window, (255, 255, 255, 100), (x, y), 2)
