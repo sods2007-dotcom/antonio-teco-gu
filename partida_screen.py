@@ -9,22 +9,38 @@ from config import (
 )
 from assets import load_assets
 from sprites import Mira, Bola, Goleiro, Partida, Batedor, AlvoDefesa
-def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
-    """Roda uma partida completa entre jogador e adversario."""
+
+
+def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina",
+                   fase_torneio="quartas"):
+    """
+    Roda uma partida completa entre jogador e adversario.
+
+    fase_torneio determina a dificuldade do CPU:
+    - quartas: facil (35% defesa)
+    - semi: medio (45% defesa)
+    - final: dificil (55% defesa)
+    """
     clock = pygame.time.Clock()
     assets = load_assets()
+
     partida = Partida(time_jogador, time_adversario)
+
     sprites_cobranca = None
     sprites_defesa = None
+
     iniciar_fase_cobranca = True
     iniciar_fase_defesa = False
     chute_cpu_disparado = False
     resultado_atual = ""
     frames_mostra_resultado = 0
+
     running = True
     next_state = MENU
+
     while running:
         clock.tick(FPS)
+
         # ===== Inicializa fase de cobranca quando precisar =====
         if iniciar_fase_cobranca:
             mira = Mira()
@@ -35,6 +51,7 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
             sprites_cobranca = (mira, bola, goleiro)
             resultado_atual = ""
             iniciar_fase_cobranca = False
+
         # ===== Inicializa fase de defesa quando precisar =====
         if iniciar_fase_defesa:
             batedor = Batedor()
@@ -47,6 +64,7 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
             chute_cpu_disparado = False
             resultado_atual = ""
             iniciar_fase_defesa = False
+
         # ===== Eventos =====
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -55,7 +73,8 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
-            # ----- Cobranca: cliques na mira ----
+
+            # ----- Cobranca: cliques na mira -----
             if partida.fase == 'jogador_cobra' and sprites_cobranca:
                 mira, bola, goleiro = sprites_cobranca
                 if event.type == pygame.MOUSEBUTTONDOWN:
@@ -68,14 +87,15 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
                         if assets.get('chute'):
                             assets['chute'].play()
                         all_sprites.remove(mira)
-                        if cpu_vai_defender(alvo_pos):
+                        if cpu_vai_defender(alvo_pos, fase_torneio):
                             goleiro.mergulhar_para(alvo_pos[0], alvo_pos[1])
                         else:
                             lado_x = random.choice(
                                 [WIDTH // 2 - 200, WIDTH // 2 + 200]
                             )
                             goleiro.mergulhar_para(lado_x, 200)
-            # ----- Defesa: jogador clica no alvo ----
+
+            # ----- Defesa: jogador clica no alvo -----
             if partida.fase == 'jogador_defende' and sprites_defesa:
                 batedor, bola_cpu, goleiro_jogador, alvo_def = sprites_defesa
                 if event.type == pygame.MOUSEBUTTONDOWN and not chute_cpu_disparado:
@@ -93,13 +113,16 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
                     if assets.get('chute'):
                         assets['chute'].play()
                     chute_cpu_disparado = True
+
         # ===== Atualiza tudo =====
         all_sprites.update()
+
         # Controla o alvo de defesa (some quando batedor termina e dispara se demora)
         if (partida.fase == 'jogador_defende'
                 and sprites_defesa
                 and not chute_cpu_disparado):
             batedor, bola_cpu, goleiro_j, alvo_def = sprites_defesa
+
             if batedor.acabou_correr():
                 if alvo_def not in all_sprites:
                     all_sprites.add(alvo_def)
@@ -110,6 +133,7 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
                     if assets.get('chute'):
                         assets['chute'].play()
                     chute_cpu_disparado = True
+
         # ===== Verifica resultado =====
         if partida.fase == 'jogador_cobra' and resultado_atual == "":
             mira, bola, goleiro = sprites_cobranca
@@ -121,6 +145,7 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
                 partida.registra_resultado_jogador(resultado_atual)
                 tocar_som_resultado(assets, resultado_atual)
                 frames_mostra_resultado = FPS * 2
+
         elif partida.fase == 'jogador_defende' and resultado_atual == "":
             _, bola_cpu, goleiro_j, _ = sprites_defesa
             if bola_cpu.estado == 'parou_no_gol':
@@ -131,6 +156,7 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
                 partida.registra_resultado_adversario(resultado_atual)
                 tocar_som_resultado(assets, resultado_atual, eh_defesa=True)
                 frames_mostra_resultado = FPS * 2
+
         # ===== Avanca para proxima fase =====
         if frames_mostra_resultado > 0:
             frames_mostra_resultado -= 1
@@ -142,6 +168,7 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
                     iniciar_fase_defesa = True
                 elif partida.fase == 'jogador_cobra':
                     iniciar_fase_cobranca = True
+
         # ===== Desenha tudo =====
         desenha_campo(window)
         desenha_gol(window)
@@ -150,19 +177,36 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina"):
         desenha_mensagem(window, assets, partida, resultado_atual,
                          sprites_cobranca, sprites_defesa,
                          chute_cpu_disparado)
+
         pygame.display.update()
+
     return next_state, partida
-def cpu_vai_defender(alvo_pos):
-    """Chance do goleiro CPU defender (40% base, menos nos cantos)."""
+
+
+def cpu_vai_defender(alvo_pos, fase_torneio="quartas"):
+    """
+    Decide se o goleiro CPU vai defender, baseado na fase do torneio.
+
+    Quanto mais avancada a fase, maior a chance de defesa.
+    A chance ainda eh reduzida para chutes mais perto dos cantos.
+    """
+    chances_base = {
+        'quartas': 0.35,
+        'semi': 0.45,
+        'final': 0.55,
+    }
+    chance_base = chances_base.get(fase_torneio, 0.4)
+
     x = alvo_pos[0]
     distancia_centro = abs(x - WIDTH // 2)
-    chance_base = 0.4
     chance = chance_base - (distancia_centro / 500)
     return random.random() < max(0.15, chance)
+
+
 def tocar_som_resultado(assets, resultado, eh_defesa=False):
     """Toca o som correto, considerando se a cobranca foi do jogador ou CPU."""
     if resultado == 'GOL':
-        # Para CPU marcar gol contra voce, toca som de perdeu
+        # CPU marcar gol contra voce = som de perdeu
         if eh_defesa:
             if assets.get('perdeu'):
                 assets['perdeu'].play()
@@ -180,6 +224,8 @@ def tocar_som_resultado(assets, resultado, eh_defesa=False):
     elif resultado == 'TRAVE':
         if assets.get('trave'):
             assets['trave'].play()
+
+
 def verifica_gol(bola):
     """Verifica se a bola entrou no gol, na trave ou fora."""
     gol_largura = 500
@@ -189,6 +235,7 @@ def verifica_gol(bola):
     bx = bola.rect.centerx
     by = bola.rect.centery
     margem_trave = 8
+
     if (abs(bx - gol_x) < margem_trave
             and gol_y <= by <= gol_y + gol_altura):
         return 'TRAVE'
@@ -202,11 +249,15 @@ def verifica_gol(bola):
             and gol_y < by < gol_y + gol_altura):
         return 'GOL'
     return 'FORA'
+
+
 def desenha_campo(window):
     """Desenha o fundo."""
     window.fill(GREEN_GRAMA)
     pygame.draw.line(window, WHITE, (0, HEIGHT - 100),
                     (WIDTH, HEIGHT - 100), 2)
+
+
 def desenha_gol(window):
     """Desenha o gol completo."""
     gol_largura = 500
@@ -227,12 +278,15 @@ def desenha_gol(window):
                     (gol_x + gol_largura, gol_y, 5, gol_altura + 5))
     pygame.draw.rect(window, WHITE,
                     (gol_x - 5, gol_y - 5, gol_largura + 10, 5))
+
+
 def desenha_placar(window, assets, partida):
     """Placar com bolinhas de cada cobranca."""
     texto_j = assets['font_pequena'].render(partida.time_jogador, True, WHITE)
     texto_a = assets['font_pequena'].render(partida.time_adversario, True, WHITE)
     window.blit(texto_j, (20, 10))
     window.blit(texto_a, (WIDTH - texto_a.get_width() - 20, 10))
+
     raio = 8
     espacamento = 22
     for i in range(5):
@@ -244,6 +298,7 @@ def desenha_placar(window, assets, partida):
             cor = (60, 60, 60)
         pygame.draw.circle(window, cor, (x, y), raio)
         pygame.draw.circle(window, WHITE, (x, y), raio, 2)
+
         x = WIDTH - 20 - i * espacamento - raio
         if i < len(partida.resultados_adversario):
             cor = GREEN if partida.resultados_adversario[i] == 'GOL' else RED
@@ -251,6 +306,8 @@ def desenha_placar(window, assets, partida):
             cor = (60, 60, 60)
         pygame.draw.circle(window, cor, (x, y), raio)
         pygame.draw.circle(window, WHITE, (x, y), raio, 2)
+
+
 def desenha_mensagem(window, assets, partida, resultado_atual,
                      sprites_cobranca, sprites_defesa, chute_cpu):
     """Mensagem do rodape conforme a fase."""
@@ -260,6 +317,7 @@ def desenha_mensagem(window, assets, partida, resultado_atual,
         window.blit(texto,
                    (WIDTH // 2 - texto.get_width() // 2, HEIGHT - 60))
         return
+
     if partida.fase == 'jogador_cobra' and sprites_cobranca:
         mira, _, _ = sprites_cobranca
         if mira.estado == 'oscilando_x':
