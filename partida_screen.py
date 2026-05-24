@@ -11,11 +11,8 @@ from assets import load_assets
 from sprites import Mira, Bola, Goleiro, Partida, Batedor, AlvoDefesa
 
 
-def partida_screen(window, time_jogador="Brasil",
-                   time_adversario="Argentina",
-                   fase_torneio="quartas",
-                   cor_jogador=None,
-                   cor_adversario=None):
+def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina",
+                   fase_torneio="quartas"):
     """
     Roda uma partida completa entre jogador e adversario.
 
@@ -26,6 +23,15 @@ def partida_screen(window, time_jogador="Brasil",
     """
     clock = pygame.time.Clock()
     assets = load_assets()
+
+    # Toca musica ambiente em loop durante a partida
+    if assets.get('musica_torcida'):
+        try:
+            pygame.mixer.music.load(assets['musica_torcida'])
+            pygame.mixer.music.set_volume(0.3)
+            pygame.mixer.music.play(-1)  # -1 = loop infinito
+        except pygame.error as e:
+            print(f"Erro ao tocar musica: {e}")
 
     partida = Partida(time_jogador, time_adversario)
 
@@ -48,7 +54,7 @@ def partida_screen(window, time_jogador="Brasil",
         if iniciar_fase_cobranca:
             mira = Mira()
             bola = Bola()
-            goleiro = Goleiro(cor_camisa=cor_adversario or YELLOW)
+            goleiro = Goleiro()
             all_sprites = pygame.sprite.Group()
             all_sprites.add(goleiro, bola, mira)
             sprites_cobranca = (mira, bola, goleiro)
@@ -57,7 +63,7 @@ def partida_screen(window, time_jogador="Brasil",
 
         # ===== Inicializa fase de defesa quando precisar =====
         if iniciar_fase_defesa:
-            batedor = Batedor(cor_camisa=cor_adversario or (200, 50, 50))
+            batedor = Batedor()
             bola_cpu = Bola()
             goleiro_jogador = Goleiro()
             alvo = AlvoDefesa()
@@ -176,18 +182,20 @@ def partida_screen(window, time_jogador="Brasil",
         desenha_campo(window)
         desenha_gol(window)
         all_sprites.draw(window)
-        desenha_titulo_fase(window, assets, fase_torneio)
-
-        if partida.fase == 'jogador_cobra' and sprites_cobranca:
-            mira, bola, _ = sprites_cobranca
-            desenha_linha_mira(window, mira, bola)
-
         desenha_placar(window, assets, partida)
         desenha_mensagem(window, assets, partida, resultado_atual,
                          sprites_cobranca, sprites_defesa,
                          chute_cpu_disparado)
 
+        # Animacao grande de resultado (GOL!, DEFESA!, etc)
+        if resultado_atual:
+            desenha_anim_resultado(window, resultado_atual,
+                                   frames_mostra_resultado)
+
         pygame.display.update()
+
+    # Para a musica ao sair da partida
+    pygame.mixer.music.stop()
 
     return next_state, partida
 
@@ -233,6 +241,43 @@ def tocar_som_resultado(assets, resultado, eh_defesa=False):
     elif resultado == 'TRAVE':
         if assets.get('trave'):
             assets['trave'].play()
+
+
+def desenha_anim_resultado(window, resultado_atual, frame_restante):
+    """
+    Desenha animacao especial quando ha resultado: texto gigante pulsando.
+
+    frame_restante: quantos frames ainda vai mostrar (decresce de FPS*2 ate 0).
+    """
+    if not resultado_atual:
+        return
+
+    progresso = frame_restante / (FPS * 2)
+    fonte_tamanho = int(120 + 20 * abs(progresso - 0.5))
+
+    cores_textos = {
+        'GOL': (YELLOW, "GOL!!!"),
+        'DEFENDIDA': ((100, 200, 255), "DEFESA!"),
+        'TRAVE': ((255, 100, 100), "NA TRAVE!"),
+        'FORA': ((180, 180, 180), "FORA!"),
+    }
+
+    if resultado_atual not in cores_textos:
+        return
+
+    cor, texto = cores_textos[resultado_atual]
+
+    # Fade out nos ultimos 20%
+    if progresso < 0.2:
+        alpha = int(255 * (progresso / 0.2))
+    else:
+        alpha = 255
+
+    fonte = pygame.font.SysFont(None, fonte_tamanho)
+    render = fonte.render(texto, True, cor)
+    render.set_alpha(alpha)
+    rect = render.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+    window.blit(render, rect)
 
 
 def verifica_gol(bola):
@@ -321,11 +366,7 @@ def desenha_mensagem(window, assets, partida, resultado_atual,
                      sprites_cobranca, sprites_defesa, chute_cpu):
     """Mensagem do rodape conforme a fase."""
     if resultado_atual:
-        cor = GREEN if resultado_atual == 'GOL' else RED
-        texto = assets['font_media'].render(resultado_atual, True, cor)
-        window.blit(texto,
-                   (WIDTH // 2 - texto.get_width() // 2, HEIGHT - 60))
-        return
+        return  # a animacao grande ja mostra o resultado
 
     if partida.fase == 'jogador_cobra' and sprites_cobranca:
         mira, _, _ = sprites_cobranca
@@ -345,38 +386,3 @@ def desenha_mensagem(window, assets, partida, resultado_atual,
         texto = assets['font_pequena'].render(msg, True, YELLOW)
         window.blit(texto,
                    (WIDTH // 2 - texto.get_width() // 2, HEIGHT - 40))
-def desenha_titulo_fase(window, assets, fase_torneio):
-    """Mostra QUARTAS / SEMIFINAL / FINAL no topo da tela."""
-    titulos = {
-        'quartas': 'QUARTAS DE FINAL',
-        'semi': 'SEMIFINAL',
-        'final': 'FINAL',
-    }
-    titulo_texto = titulos.get(fase_torneio, '')
-    if not titulo_texto:
-        return
-    cor = YELLOW if fase_torneio == 'final' else WHITE
-    texto = assets['font_pequena'].render(titulo_texto, True, cor)
-    texto_rect = texto.get_rect(center=(WIDTH // 2, 30))
-    # Caixa preta semi-transparente atras
-    caixa = pygame.Surface(
-        (texto.get_width() + 30, texto.get_height() + 6),
-        pygame.SRCALPHA
-    )
-    caixa.fill((0, 0, 0, 180))
-    caixa_rect = caixa.get_rect(center=texto_rect.center)
-    window.blit(caixa, caixa_rect)
-    window.blit(texto, texto_rect)
-def desenha_linha_mira(window, mira, bola):
-    """Linha pontilhada da bola ate a mira (so durante cobranca)."""
-    if mira.estado not in ('oscilando_x', 'subindo'):
-        return
-    bx, by = bola.rect.center
-    mx, my = mira.rect.center
-    num_pontos = 15
-    for i in range(num_pontos):
-        if i % 2 == 0:
-            t = i / num_pontos
-            x = int(bx + (mx - bx) * t)
-            y = int(by + (my - by) * t)
-            pygame.draw.circle(window, (255, 255, 255, 100), (x, y), 2)

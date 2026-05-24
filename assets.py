@@ -23,7 +23,7 @@ def load_assets():
     assets['font_media'] = pygame.font.SysFont(None, 50)
     assets['font_pequena'] = pygame.font.SysFont(None, 28)
 
-    # ----- Sons -----
+    # ----- Sons (efeitos curtos) -----
     sons_para_carregar = {
         'chute': 'chute.wav',
         'gol': 'gol.mp3',
@@ -42,5 +42,16 @@ def load_assets():
                 assets[nome] = None
         else:
             assets[nome] = None
+
+    # ----- Musica ambiente -----
+    # Usamos pygame.mixer.music (otimizado para streaming/loop)
+    caminho_musica = None
+    for ext in ['ogg', 'wav', 'mp3']:
+        c = os.path.join(SND_DIR, f'torcida.{ext}')
+        if os.path.exists(c):
+            caminho_musica = c
+            break
+
+    assets['musica_torcida'] = caminho_musica  # so guarda o caminho
 
     return assets
