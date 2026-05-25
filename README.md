@@ -98,7 +98,7 @@ penalty-shooter/
 
 ## Vídeo de apresentação
 
-[Assista no YouTube](https://youtu.be/SEU_LINK_AQUI)
+[Assista no YouTube](https://youtu.be/XfsA00b_igU?si=m03qhryGekXsog2U)
 
 ## Tecnologias utilizadas
 
@@ -110,11 +110,11 @@ penalty-shooter/
 
 Todos os sons foram obtidos em [freesound.org](https://freesound.org/):
 
-- **chute.wav** — "TÍTULO" por AUTOR, licença LICENÇA
-- **gol.mp3** — "TÍTULO" por AUTOR, licença LICENÇA
-- **perdeu.mp3** — "TÍTULO" por AUTOR, licença LICENÇA
-- **trave.wav** — "TÍTULO" por AUTOR, licença LICENÇA
-- **torcida.wav** — "TÍTULO" por AUTOR, licença LICENÇA
+- **chute.wav** — autor anonimo
+- **gol.mp3** — autor anonimo
+- **perdeu.mp3** — autor anonimo
+- **trave.wav** — autor anonimo
+- **torcida.wav** — autor anonimo
 
 ## Sobre o desenvolvimento
 
