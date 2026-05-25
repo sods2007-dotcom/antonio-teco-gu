@@ -3,12 +3,19 @@ Tela da partida — alternancia entre cobrar e defender.
 """
 import pygame
 import random
+import math
 from config import (
     WIDTH, HEIGHT, FPS, WHITE, BLACK, GREEN_GRAMA, GRAY, GREEN, RED, YELLOW,
     MENU, FIM_PARTIDA, QUIT
 )
 from assets import load_assets
 from sprites import Mira, Bola, Goleiro, Partida, Batedor, AlvoDefesa
+
+# Dimensoes do gol (mesmas usadas em sprites.py)
+GOL_LARGURA = 500
+GOL_ALTURA = 180
+GOL_X = (WIDTH - GOL_LARGURA) // 2
+GOL_Y = 80
 
 
 def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina",
@@ -89,33 +96,27 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina",
                 mira, bola, goleiro = sprites_cobranca
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if mira.estado == 'oscilando_x':
-                        # Primeiro clique: trava direcao, comeca a oscilar altura
                         mira.travar_horizontal()
                     elif mira.estado == 'oscilando_y':
-                        # Segundo clique: dispara na altura escolhida
                         alvo_pos = mira.disparar()
                         bola.chutar(alvo_pos[0], alvo_pos[1])
                         if assets.get('chute'):
                             assets['chute'].play()
                         all_sprites.remove(mira)
-                        # CPU decide se defende e mergulha PARA O ALVO REAL
                         if cpu_vai_defender(alvo_pos, fase_torneio):
                             goleiro.mergulhar_para(alvo_pos[0], alvo_pos[1])
                         else:
-                            # Erra de proposito: mergulha longe do alvo
                             if alvo_pos[0] < WIDTH // 2:
                                 lado_errado = WIDTH // 2 + 150
                             else:
                                 lado_errado = WIDTH // 2 - 150
                             goleiro.mergulhar_para(lado_errado, 200)
 
-            # ----- Defesa: jogador clica no alvo -----
+            # ----- Defesa: jogador clica onde acha que a bola vai -----
             if partida.fase == 'jogador_defende' and sprites_defesa:
                 batedor, bola_cpu, goleiro_jogador, alvo_def = sprites_defesa
                 if event.type == pygame.MOUSEBUTTONDOWN and not chute_cpu_disparado:
-                    # O goleiro vai exatamente para onde o jogador clicou
                     goleiro_jogador.mergulhar_para(event.pos[0], event.pos[1])
-                    # A bola do CPU vai para o alvo real
                     bola_cpu.chutar(alvo_def.alvo_x, alvo_def.alvo_y)
                     if assets.get('chute'):
                         assets['chute'].play()
@@ -124,8 +125,6 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina",
         # ===== Atualiza tudo =====
         all_sprites.update()
 
-        # Alvo de defesa: aparece quando batedor termina de correr, e
-        # dispara sozinho se o jogador demorar demais
         if (partida.fase == 'jogador_defende'
                 and sprites_defesa
                 and not chute_cpu_disparado):
@@ -135,7 +134,6 @@ def partida_screen(window, time_jogador="Brasil", time_adversario="Argentina",
                     all_sprites.add(alvo_def)
                 alvo_def.update()
                 if alvo_def.expirou():
-                    # Jogador nao reagiu: goleiro fica parado, CPU chuta no alvo
                     bola_cpu.chutar(alvo_def.alvo_x, alvo_def.alvo_y)
                     if assets.get('chute'):
                         assets['chute'].play()
@@ -260,7 +258,7 @@ def desenha_titulo_fase(window, assets, fase_torneio):
 
 
 def desenha_linha_mira(window, mira, bola):
-    """Linha pontilhada da bola ate a mira (so durante a mira)."""
+    """Linha pontilhada da bola ate a mira."""
     if mira.estado not in ('oscilando_x', 'oscilando_y'):
         return
     bx, by = bola.rect.center
@@ -302,59 +300,102 @@ def desenha_anim_resultado(window, resultado_atual, frame_restante):
 
 def verifica_gol(bola):
     """Verifica se a bola entrou no gol, na trave ou fora."""
-    gol_largura = 500
-    gol_altura = 180
-    gol_x = (WIDTH - gol_largura) // 2
-    gol_y = 80
     bx = bola.rect.centerx
     by = bola.rect.centery
-    margem_trave = 8
-    if (abs(bx - gol_x) < margem_trave
-            and gol_y <= by <= gol_y + gol_altura):
+    margem_trave = 10
+
+    if (abs(bx - GOL_X) < margem_trave
+            and GOL_Y <= by <= GOL_Y + GOL_ALTURA):
         return 'TRAVE'
-    if (abs(bx - (gol_x + gol_largura)) < margem_trave
-            and gol_y <= by <= gol_y + gol_altura):
+    if (abs(bx - (GOL_X + GOL_LARGURA)) < margem_trave
+            and GOL_Y <= by <= GOL_Y + GOL_ALTURA):
         return 'TRAVE'
-    if (abs(by - gol_y) < margem_trave
-            and gol_x <= bx <= gol_x + gol_largura):
+    if (abs(by - GOL_Y) < margem_trave
+            and GOL_X <= bx <= GOL_X + GOL_LARGURA):
         return 'TRAVE'
-    if (gol_x < bx < gol_x + gol_largura
-            and gol_y < by < gol_y + gol_altura):
+
+    if (GOL_X - 5 <= bx <= GOL_X + GOL_LARGURA + 5
+            and GOL_Y - 5 <= by <= GOL_Y + GOL_ALTURA + 5):
         return 'GOL'
+
     return 'FORA'
 
 
 def desenha_campo(window):
-    """Desenha o fundo."""
-    window.fill(GREEN_GRAMA)
-    pygame.draw.line(window, WHITE, (0, HEIGHT - 100),
-                    (WIDTH, HEIGHT - 100), 2)
+    """Desenha o campo com gramado listrado, area e marca do penalti."""
+    # Ceu / arquibancada ao fundo (faixa superior escura)
+    window.fill((30, 60, 30))
+    pygame.draw.rect(window, (45, 45, 70), (0, 0, WIDTH, 70))
+    # Pequenos "pontos" simulando torcida na arquibancada
+    for i in range(0, WIDTH, 14):
+        cor_torcida = [(200, 80, 80), (80, 80, 200), (220, 220, 80),
+                       (220, 220, 220)][(i // 14) % 4]
+        pygame.draw.circle(window, cor_torcida, (i + 7, 35), 3)
+
+    # Gramado listrado (faixas alternadas de verde)
+    topo_grama = 70
+    altura_faixa = 40
+    n_faixas = (HEIGHT - topo_grama) // altura_faixa + 1
+    for i in range(n_faixas):
+        y = topo_grama + i * altura_faixa
+        cor = (38, 120, 38) if i % 2 == 0 else (48, 140, 48)
+        pygame.draw.rect(window, cor, (0, y, WIDTH, altura_faixa))
+
+    # Grande arco da area (semicirculo branco)
+    pygame.draw.arc(window, WHITE,
+                   (WIDTH // 2 - 180, GOL_Y + GOL_ALTURA - 40, 360, 200),
+                   3.3, 6.1, 3)
+
+    # Marca do penalti (ponto branco de onde a bola sai)
+    pygame.draw.circle(window, WHITE, (WIDTH // 2, HEIGHT - 80), 5)
+
+    # Linha da pequena area
+    area_larg = GOL_LARGURA + 120
+    area_x = (WIDTH - area_larg) // 2
+    area_y = GOL_Y + GOL_ALTURA
+    pygame.draw.rect(window, WHITE,
+                    (area_x, GOL_Y, area_larg, area_y - GOL_Y), 3)
 
 
 def desenha_gol(window):
-    """Desenha o gol completo."""
-    gol_largura = 500
-    gol_altura = 180
-    gol_x = (WIDTH - gol_largura) // 2
-    gol_y = 80
-    pygame.draw.rect(window, GRAY, (gol_x, gol_y, gol_largura, gol_altura))
-    for i in range(1, 10):
-        x = gol_x + i * (gol_largura // 10)
-        pygame.draw.line(window, (100, 100, 100),
-                         (x, gol_y), (x, gol_y + gol_altura), 1)
-    for i in range(1, 5):
-        y = gol_y + i * (gol_altura // 5)
-        pygame.draw.line(window, (100, 100, 100),
-                         (gol_x, y), (gol_x + gol_largura, y), 1)
-    pygame.draw.rect(window, WHITE, (gol_x - 5, gol_y, 5, gol_altura + 5))
+    """Desenha o gol com traves arredondadas e rede em malha."""
+    # Rede (fundo semi-transparente)
+    rede = pygame.Surface((GOL_LARGURA, GOL_ALTURA), pygame.SRCALPHA)
+    rede.fill((220, 220, 220, 60))
+    window.blit(rede, (GOL_X, GOL_Y))
+
+    # Malha da rede (linhas finas em diagonal cruzada)
+    cor_rede = (255, 255, 255, 90)
+    for x in range(GOL_X, GOL_X + GOL_LARGURA + 1, 20):
+        pygame.draw.line(window, (200, 200, 200),
+                        (x, GOL_Y), (x, GOL_Y + GOL_ALTURA), 1)
+    for y in range(GOL_Y, GOL_Y + GOL_ALTURA + 1, 20):
+        pygame.draw.line(window, (200, 200, 200),
+                        (GOL_X, y), (GOL_X + GOL_LARGURA, y), 1)
+
+    # Traves grossas brancas (com leve sombra)
+    espessura = 8
+    # Sombra
+    pygame.draw.rect(window, (180, 180, 180),
+                    (GOL_X - espessura + 2, GOL_Y + 2,
+                     espessura, GOL_ALTURA + espessura))
+    # Trave esquerda
     pygame.draw.rect(window, WHITE,
-                    (gol_x + gol_largura, gol_y, 5, gol_altura + 5))
+                    (GOL_X - espessura, GOL_Y, espessura,
+                     GOL_ALTURA + espessura), border_radius=3)
+    # Trave direita
     pygame.draw.rect(window, WHITE,
-                    (gol_x - 5, gol_y - 5, gol_largura + 10, 5))
+                    (GOL_X + GOL_LARGURA, GOL_Y, espessura,
+                     GOL_ALTURA + espessura), border_radius=3)
+    # Travessao
+    pygame.draw.rect(window, WHITE,
+                    (GOL_X - espessura, GOL_Y - espessura,
+                     GOL_LARGURA + espessura * 2, espessura),
+                    border_radius=3)
 
 
 def desenha_placar(window, assets, partida):
-    """Placar com bolinhas de cada cobranca."""
+    """Placar com nome dos times e bolinhas de cada cobranca."""
     texto_j = assets['font_pequena'].render(partida.time_jogador, True, WHITE)
     texto_a = assets['font_pequena'].render(partida.time_adversario, True, WHITE)
     window.blit(texto_j, (20, 10))

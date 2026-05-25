@@ -6,7 +6,17 @@ sistema de grupos e desenho automatico do pygame.
 """
 import pygame
 import random
+import math
 from config import WIDTH, HEIGHT, RED, YELLOW, WHITE
+
+
+# Constantes do gol compartilhadas (usadas por varias classes/funcoes)
+GOL_LARGURA = 500
+GOL_ALTURA = 180
+GOL_X = (WIDTH - GOL_LARGURA) // 2
+GOL_Y = 80
+# Linha onde a bola "chega" no gol (um pouco dentro, nao na borda)
+LINHA_GOL_Y = 200
 
 
 class Mira(pygame.sprite.Sprite):
@@ -38,19 +48,21 @@ class Mira(pygame.sprite.Sprite):
                         (self.tamanho // 2, self.tamanho), 2)
 
         self.rect = self.image.get_rect()
-        self.rect.centerx = WIDTH // 2
-        self.rect.centery = HEIGHT - 200
 
-        self.speedx = 7  # velocidade horizontal
-        self.speedy = 5  # velocidade vertical (quando subindo/descendo)
-
-        # Limites horizontais (dentro do gol, com folga)
-        self.x_min = (WIDTH - 500) // 2 + 10
-        self.x_max = self.x_min + 500 - 30
+        # Limites horizontais (dentro do gol)
+        self.x_min = GOL_X + 20
+        self.x_max = GOL_X + GOL_LARGURA - 20
 
         # Limites verticais (dentro do gol)
-        self.y_min = 100   # mais alto (perto do travessao)
-        self.y_max = 240   # mais baixo (perto do chao do gol)
+        self.y_min = GOL_Y + 25    # mais alto (perto do travessao)
+        self.y_max = GOL_Y + GOL_ALTURA - 25   # mais baixo
+
+        # Posicao inicial DENTRO dos limites (evita "vibrar")
+        self.rect.centerx = WIDTH // 2
+        self.rect.centery = (self.y_min + self.y_max) // 2
+
+        self.speedx = 7
+        self.speedy = 4
 
         # Estado: 'oscilando_x', 'oscilando_y', 'disparada'
         self.estado = 'oscilando_x'
@@ -58,12 +70,20 @@ class Mira(pygame.sprite.Sprite):
     def update(self):
         """Atualiza a posicao da mira conforme seu estado."""
         if self.estado == 'oscilando_x':
-            self.rect.x += self.speedx
-            if self.rect.right > self.x_max or self.rect.left < self.x_min:
+            self.rect.centerx += self.speedx
+            if self.rect.centerx > self.x_max:
+                self.rect.centerx = self.x_max
+                self.speedx = -self.speedx
+            elif self.rect.centerx < self.x_min:
+                self.rect.centerx = self.x_min
                 self.speedx = -self.speedx
         elif self.estado == 'oscilando_y':
-            self.rect.y += self.speedy
-            if self.rect.bottom > self.y_max or self.rect.top < self.y_min:
+            self.rect.centery += self.speedy
+            if self.rect.centery > self.y_max:
+                self.rect.centery = self.y_max
+                self.speedy = -self.speedy
+            elif self.rect.centery < self.y_min:
+                self.rect.centery = self.y_min
                 self.speedy = -self.speedy
 
     def travar_horizontal(self):
@@ -90,7 +110,6 @@ class Bola(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
 
-        # Cria imagem da bola com gomos (estilo bola de futebol)
         self.raio = 15
         diametro = self.raio * 2
         self.image = pygame.Surface((diametro, diametro), pygame.SRCALPHA)
@@ -105,21 +124,19 @@ class Bola(pygame.sprite.Sprite):
         self.escala = 1.0
         self.estado = 'parada'
 
+        # Guarda a posicao alvo para saber quando chegou
+        self.alvo_y = LINHA_GOL_Y
+
     def _desenha_bola(self, surf, raio):
         """Desenha uma bola branca com pentagonos pretos (estilo classico)."""
         centro = (raio, raio)
-        # Corpo branco
         pygame.draw.circle(surf, WHITE, centro, raio)
-        # Pentagono central preto
         pygame.draw.circle(surf, (20, 20, 20), centro, raio // 3)
-        # Pequenos gomos ao redor
-        import math
         for ang in range(0, 360, 72):
             rad = math.radians(ang)
             px = int(raio + (raio * 0.65) * math.cos(rad))
             py = int(raio + (raio * 0.65) * math.sin(rad))
             pygame.draw.circle(surf, (20, 20, 20), (px, py), raio // 6)
-        # Borda preta
         pygame.draw.circle(surf, (0, 0, 0), centro, raio, 2)
 
     def chutar(self, alvo_x, alvo_y):
@@ -130,6 +147,8 @@ class Bola(pygame.sprite.Sprite):
         para que o movimento seja previsivel.
         """
         FRAMES_ATE_GOL = 25
+
+        self.alvo_y = alvo_y
 
         dx = alvo_x - self.rect.centerx
         dy = alvo_y - self.rect.centery
@@ -147,7 +166,8 @@ class Bola(pygame.sprite.Sprite):
         self.rect.x += self.speedx
         self.rect.y += self.speedy
 
-        progresso = 1 - (self.rect.centery - 200) / (self.POSICAO_INICIAL_Y - 200)
+        # Diminui escala conforme se aproxima do gol (profundidade)
+        progresso = 1 - (self.rect.centery - LINHA_GOL_Y) / (self.POSICAO_INICIAL_Y - LINHA_GOL_Y)
         progresso = max(0, min(1, progresso))
         self.escala = 1 - progresso * 0.6
 
@@ -159,7 +179,8 @@ class Bola(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = center
 
-        if self.rect.centery <= 260:
+        # Para quando chega na altura do alvo (que esta dentro do gol)
+        if self.rect.centery <= self.alvo_y:
             self.estado = 'parou_no_gol'
 
     def resetar(self):
@@ -171,23 +192,22 @@ class Bola(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = (self.POSICAO_INICIAL_X, self.POSICAO_INICIAL_Y)
         self.estado = 'parada'
+        self.alvo_y = LINHA_GOL_Y
 
 
 class Goleiro(pygame.sprite.Sprite):
     """
     Goleiro: fica parado no meio do gol e mergulha para defender.
 
-    IMPORTANTE: o goleiro NUNCA avanca em direcao a bola. Ele soh se move
-    lateralmente e em altura, sempre dentro da linha do gol (o Y do alvo
-    eh limitado para a area do gol).
+    O goleiro NUNCA avanca em direcao a bola. Soh se move lateralmente e
+    em altura, sempre dentro da area do gol.
     """
 
     LARGURA = 70
     ALTURA = 110
 
-    # Limites do gol onde o goleiro pode chegar (nao avanca alem disso)
-    Y_MIN_GOL = 110   # quao alto pode pular
-    Y_MAX_GOL = 250   # quao baixo (linha do gol)
+    Y_MIN_GOL = GOL_Y + 30
+    Y_MAX_GOL = GOL_Y + GOL_ALTURA - 10
 
     def __init__(self, cor_camisa=YELLOW):
         """Inicializa o goleiro com a cor da camisa especificada."""
@@ -201,7 +221,7 @@ class Goleiro(pygame.sprite.Sprite):
         self.image_original = self.image.copy()
         self.rect = self.image.get_rect()
         self.rect.centerx = WIDTH // 2
-        self.rect.bottom = 250
+        self.rect.centery = (self.Y_MIN_GOL + self.Y_MAX_GOL) // 2
         self.posicao_inicial = self.rect.center
 
         self.estado = 'parado'
@@ -211,7 +231,7 @@ class Goleiro(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
 
     def _desenha_goleiro(self, surf, cor_camisa):
-        """Desenha um goleiro mais detalhado (cabeca, tronco, bracos, luvas)."""
+        """Desenha um goleiro com cabeca, tronco, bracos e luvas."""
         larg = self.LARGURA
         alt = self.ALTURA
         cx = larg // 2
@@ -219,19 +239,15 @@ class Goleiro(pygame.sprite.Sprite):
         # Pernas (shorts escuros)
         pygame.draw.rect(surf, (40, 40, 60), (cx - 18, alt - 35, 14, 30))
         pygame.draw.rect(surf, (40, 40, 60), (cx + 4, alt - 35, 14, 30))
-
         # Tronco (camisa cor do time)
         pygame.draw.rect(surf, cor_camisa, (cx - 22, 38, 44, alt - 70),
                         border_radius=6)
-
-        # Bracos abertos (postura de defesa)
+        # Bracos abertos
         pygame.draw.rect(surf, cor_camisa, (0, 40, larg, 14),
                         border_radius=6)
-
-        # Luvas nas pontas dos bracos
+        # Luvas nas pontas
         pygame.draw.circle(surf, WHITE, (6, 47), 8)
         pygame.draw.circle(surf, WHITE, (larg - 6, 47), 8)
-
         # Cabeca
         pygame.draw.circle(surf, (255, 220, 180), (cx, 22), 16)
         # Cabelo
@@ -242,11 +258,9 @@ class Goleiro(pygame.sprite.Sprite):
         """
         Inicia o mergulho do goleiro em direcao a (x, y).
 
-        O y eh limitado a area do gol para o goleiro nunca avancar
-        em direcao a bola (manter realismo).
+        O y eh limitado a area do gol para o goleiro nunca avancar.
         """
         self.alvo_x = x
-        # Limita o Y dentro da area do gol (impede avancar)
         self.alvo_y = max(self.Y_MIN_GOL, min(self.Y_MAX_GOL, y))
         self.estado = 'mergulhando'
         self.frames_mergulho = 0
@@ -381,17 +395,12 @@ class Batedor(pygame.sprite.Sprite):
 
     def _desenha_batedor(self, surf, cor_camisa):
         """Desenha o batedor com cabeca, tronco, bracos e pernas."""
-        # Pernas
         pygame.draw.rect(surf, (40, 40, 60), (12, 58, 8, 20))
         pygame.draw.rect(surf, (40, 40, 60), (24, 58, 8, 20))
-        # Tronco
         pygame.draw.rect(surf, cor_camisa, (8, 24, 28, 38), border_radius=5)
-        # Bracos
         pygame.draw.rect(surf, cor_camisa, (2, 28, 6, 22), border_radius=3)
         pygame.draw.rect(surf, cor_camisa, (36, 28, 6, 22), border_radius=3)
-        # Cabeca
         pygame.draw.circle(surf, (255, 220, 180), (22, 12), 11)
-        # Cabelo
         pygame.draw.arc(surf, (40, 25, 15), (11, 1, 22, 22), 0.2, 3.0, 4)
 
     def update(self):
@@ -430,18 +439,12 @@ class AlvoDefesa(pygame.sprite.Sprite):
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
 
-        gol_largura = 500
-        gol_altura = 180
-        gol_x = (WIDTH - gol_largura) // 2
-        gol_y = 80
         margem = 40
-
         self.alvo_x = random.randint(
-            gol_x + margem, gol_x + gol_largura - margem
+            GOL_X + margem, GOL_X + GOL_LARGURA - margem
         )
-        self.alvo_y = random.randint(
-            gol_y + margem, gol_y + gol_altura - margem
-        )
+        # Alvo dentro da area que o goleiro consegue alcancar
+        self.alvo_y = random.randint(GOL_Y + 40, GOL_Y + GOL_ALTURA - 30)
 
         self.tamanho = 38
         self.image = pygame.Surface(
