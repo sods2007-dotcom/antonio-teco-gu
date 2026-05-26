@@ -120,4 +120,4 @@ Todos os sons foram obtidos em [freesound.org](https://freesound.org/):
 
 Este projeto foi desenvolvido como Projeto Final da disciplina de Design de Software do primeiro semestre de Engenharia/Ciências Econômicas do Insper, semestre 2026/1.
 
-Foi utilizada assistência de IA generativa (Claude, da Anthropic) como ferramenta de tutoria durante o desenvolvimento. Os integrantes do grupo são responsáveis pelo entendimento e explicação de todo o código presente no projeto.
+Foi utilizada assistência de IA generativa como ferramenta auxiliar durante o desenvolvimento. Os integrantes do grupo são responsáveis pelo entendimento e explicação de todo o código presente no projeto.
